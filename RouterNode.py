@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-from asyncio.windows_events import INFINITE
-from msilib.schema import IniFile
 import GuiTextArea, RouterPacket, F
 from copy import deepcopy
 from RouterSimulator import Event
@@ -14,6 +12,7 @@ class RouterNode():
     costs = None
 
     nbrcosts2d = None
+    neighbour = None
     # Access simulator variables with:
     # self.sim.POISONREVERSE, self.sim.NUM_NODES, etc.
 
@@ -25,14 +24,15 @@ class RouterNode():
 
         self.costs = deepcopy(costs)
         self.printDistanceTable()
-
+        '''
         [0,2,3]
         [2,0,i]
         [3,i,0]
-
+        '''
 
         #Initiate the 2D neighbour list
-        self.nbrcosts2d = [[INFINITE for x in range(self.sim.NUM_NODES)] for y in range(self.sim.NUM_NODES)]
+        self.nbrcosts2d = [[self.sim.INFINITY for x in range(self.sim.NUM_NODES)] for y in range(self.sim.NUM_NODES)]
+        self.neighbour = []
         for x in range(self.sim.NUM_NODES):
             for y in range(self.sim.NUM_NODES):
                 if x == self.myID:
@@ -40,33 +40,47 @@ class RouterNode():
                 elif y == x:
                     self.nbrcosts2d[x][y] = 0
                 else:
-                    self.nbrcosts2d[x][y] = INFINITE
+                    self.nbrcosts2d[x][y] = self.sim.INFINITY
         self.printNeighbourList()
+        for i in range(self.sim.NUM_NODES):
+            if costs[i] != self.sim.INFINITY:
+                self.neighbour.append(i)
+        for i in range(self.sim.NUM_NODES):
+            if (i != self.myID):
+                self.sendUpdate(RouterPacket(self.myID,i,self.nbrcosts2d[self.myID]))
     # --------------------------------------------------
 
     def printNeighbourList(self):
+        self.myGUI.println("---NeighbourList---")
         for i in range(self.sim.NUM_NODES):
             self.myGUI.println(str(self.nbrcosts2d[i]))
 
     def recvUpdate(self, pkt):
         self.myGUI.println(self.time() + " Packet recieved -- Src: " +str(pkt.sourceid) + "; mincost: " + str(pkt.mincost))
-        
+        changed = False
         #Uppdatera cost på något sätt hmmmmmmmmmmmmm.....
 
-        changed = False
-        '''for i in range(len(pkt.mincost)):
-        #   dx(y) = minv{c(x,v) + dv(y)}
-            if i != self.myID and i != pkt.sourceid:
-                if pkt.mincost[i] < self.costs[i]:
-                    changed = True
-                    self.costs[i] = pkt.mincost[i]
-        '''
+        
+        for i in range(self.sim.NUM_NODES):
+            if self.nbrcosts2d[pkt.sourceid][i] != pkt.mincost[i]:
+                changed = True
+                self.nbrcosts2d[pkt.sourceid] = pkt.mincost
 
+        for i in range(self.sim.NUM_NODES):
+            if i != self.myID and changed == True:
+                for j in range(len(self.neighbour)):
+                    if j != i:
+                        if (self.nbrcosts2d[self.myID][i] + self.nbrcosts2d[i][i]) > (self.nbrcosts2d[self.myID][j] + self.nbrcosts2d[j][i]):
+                            self.nbrcosts2d[self.myID][i] = self.nbrcosts2d[self.myID][j] + self.nbrcosts2d[j][i]
+
+        self.printNeighbourList()
+
+        '''
         for i in range(0,len(pkt.mincost)):
             if pkt.mincost[i] + pkt.mincost[self.myID] < self.costs[i]:
                 self.costs[i] = pkt.mincost[i] + pkt.mincost[self.myID]
                 changed = True
-
+        '''
 
         if changed:
             self.myGUI.println(self.time() + " Costs updated! : " + str(self.costs))
@@ -79,7 +93,6 @@ class RouterNode():
 
     # --------------------------------------------------
     def sendUpdate(self, pkt):
-        
         self.sim.toLayer2(pkt)
 
 

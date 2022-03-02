@@ -45,7 +45,7 @@ class RouterNode():
             # I will set my next hop to it directly until I find a route with less cost.
             # If not a neighbour, set to infinity until a hop is known.
             self.nextHops[i] = i if costs[i] < self.sim.INFINITY else self.sim.INFINITY
-
+            self.myGUI.println(str(self.nextHops[i]))
         # the direct cost is the cheapest we know so far
         self.minCosts = deepcopy(costs)
 
