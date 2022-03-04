@@ -61,7 +61,7 @@ class RouterNode():
         for i in range (self.sim.NUM_NODES):
             if self.neighCosts[pkt.sourceid][i] != pkt.mincost[i]:
                 # got new information from source
-                changed_table = True
+                changed_table = True                
                 self.neighCosts[pkt.sourceid][i] = pkt.mincost[i]
                 self.myGUI.println("We have updated our minCosts: " + str(self.minCosts))
 
@@ -69,7 +69,14 @@ class RouterNode():
             for i in range (self.sim.NUM_NODES):
                 if i == self.myID:
                     continue # we always have 0 cost to ourself, skip
+hops               0  2  2
+min                0  3  5
 
+2d                 0  3  5
+                   3  0  8
+                   5  4  0
+
+cost               0  3+0 5+0
                 # determine cost to i via neighbour using new info
                 neighCost = self.minCosts[self.nextHops[i]] + self.neighCosts[self.nextHops[i]][i]
 

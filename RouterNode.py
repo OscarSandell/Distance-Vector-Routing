@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from calendar import c
+import collections
 import GuiTextArea, RouterPacket, F
 from copy import deepcopy
 from RouterSimulator import Event
@@ -29,7 +31,7 @@ class RouterNode():
         self.myGUI = GuiTextArea.GuiTextArea("  Output window for Router #" + str(ID) + "  ")
 
         self.costs = deepcopy(costs)
-        self.printDistanceTable()
+        
 
         #Initiate the 2D neighbour list
         self.nbrcosts2d = [[self.sim.INFINITY for x in range(self.sim.NUM_NODES)] for y in range(self.sim.NUM_NODES)]
@@ -43,9 +45,7 @@ class RouterNode():
                 else:
                     self.nbrcosts2d[x][y] = self.sim.INFINITY
                     
-        #Print neigbourlist
-        self.printNeighbourList()
-        
+
         #Initiate the minCost variable, it is currently our direct cost to our neighbours
         self.minCost = deepcopy(self.costs)
         
@@ -60,72 +60,74 @@ class RouterNode():
         for i in range(self.sim.NUM_NODES):
             if costs[i] != self.sim.INFINITY:
                 self.route.append(i)
-
+            else:
+                self.route.append(self.sim.INFINITY)
         #Send our minCost to our neighbours.
         for i in range(len(self.neighbours)):
             if (i != self.myID):
                 self.sendUpdate(RouterPacket(self.myID,i,self.minCost))
         
-        
+        self.printDistanceTable()
     # --------------------------------------------------
-    #Print the route
-    def printRoute(self):
-        self.myGUI.println("---Route---")
-        self.myGUI.println(str(self.route))
-
-    #Print the neighbour list
-    def printNeighbourList(self):
-        self.myGUI.println("---NeighbourList---")
-        for i in range(self.sim.NUM_NODES):
-            self.myGUI.println(str(self.nbrcosts2d[i]))
-        
+    
         
 
     def recvUpdate(self, pkt):
         self.myGUI.println(self.time() + " Packet recieved -- Src: " +str(pkt.sourceid) + "; mincost: " + str(pkt.mincost))
         changed = False
         #Uppdatera cost på något sätt hmmmmmmmmmmmmm.....
-
+        '''
+        list = [elm1[item1,item2],
+                elm2[item1,item2],
+                elm3[item1,item2]]
         
+        list[0][0]
+        '''
+        self.myGUI.println("Old table:")
+        self.printDistanceTable()
         for i in range(self.sim.NUM_NODES):
             if self.nbrcosts2d[pkt.sourceid] != pkt.mincost:
-                
-                self.nbrcosts2d[pkt.sourceid] = deepcopy(pkt.mincost)
-
-        for i in range(self.sim.NUM_NODES):
-            if i != self.myID:
-                for j in range(len(self.neighbours)):
-                    if j != i:
-                        newCost = self.nbrcosts2d[self.myID][j] + self.nbrcosts2d[j][i]
-                        '''
-                        if (self.nbrcosts2d[self.myID][i] + self.nbrcosts2d[i][i]) > (self.nbrcosts2d[self.myID][j] + self.nbrcosts2d[j][i]):
-                            self.nbrcosts2d[self.myID][i] = self.nbrcosts2d[self.myID][j] + self.nbrcosts2d[j][i]
-                            #self.costs = self.nbrcosts2d[self.myID]
-                        '''
-                        if (self.minCost[j] > newCost):
-                            changed = True
-                            self.route[j] = i
-                            self.minCost[j] = newCost
-                            self.nbrcosts2d[self.myID] = self.minCost
-        self.printNeighbourList()
-        self.printRoute()
-
-        '''
-        for i in range(0,len(pkt.mincost)):
-            if pkt.mincost[i] + pkt.mincost[self.myID] < self.costs[i]:
-                self.costs[i] = pkt.mincost[i] + pkt.mincost[self.myID]
                 changed = True
-        '''
-        '''
+                self.nbrcosts2d[pkt.sourceid] = deepcopy(pkt.mincost)
+        self.myGUI.println("New Table:")
+        self.printDistanceTable()
+        
         if changed:
-            self.myGUI.println(self.time() + " Costs updated! : " + str(self.costs))
-            for i in range(len(self.costs)):
-                if i != self.myID:
-                    pkt = RouterPacket(self.myID,i,self.costs)
-                    self.sendUpdate(pkt)
-                    self.myGUI.println(self.time() + " Send update to : " + str(i))
-        '''
-        if changed:
+            '''
+            for row in range(self.sim.NUM_NODES):
+                if row != self.myID:
+                    for column in range(self.sim.NUM_NODES):
+                        #if column != row:
+                            print(self.route)
+                            print(row)
+                            newCost = self.minCost[column] + self.nbrcosts2d[self.route[column]][column]
+                            if self.route[column] == self.sim.INFINITY:
+                                self.myGUI.println("Thisis the \"row\" value: " + str(row))
+                                self.myGUI.println("Thisis the \"column\" value: " + str(column))
+                                self.myGUI.println("This is the \"newcost\": " + str(newCost))
+                            if (self.minCost[column] > newCost):
+                                self.route[column] = row
+                                self.minCost[column] = newCost
+                                self.nbrcosts2d[self.myID] = self.minCost
+            '''
+            for column in range(self.sim.NUM_NODES):
+                if self.route[column] == pkt.sourceid:
+                    self.minCost[column] = self.costs[pkt.sourceid] + self.nbrcosts2d[pkt.sourceid][column]
+                for row in range(self.sim.NUM_NODES):
+                    if row != self.myID:
+                    #find a node that has a shorter cost to colum
+                        if self.minCost[column] > self.nbrcosts2d[row][column]:
+                            #if there is a node with a shorter cost to column, then check if the cost to
+                            #that row + the cost from that row to the colum is bigger then our cost to the
+                            #column.
+                            if self.minCost[column] > self.costs[row] + self.nbrcosts2d[row][column]:
+                                self.minCost[column] = self.costs[row] + self.nbrcosts2d[row][column]
+                                self.route[column] = row
+                                self.nbrcosts2d[self.myID] = self.minCost
+            
+            self.printDistanceTable()
+
+        
             self.myGUI.println(self.time() + " Costs updated! : " + str(self.minCost))
             self.broadcast()
 
@@ -141,49 +143,82 @@ class RouterNode():
                            "  at time " + str(self.sim.getClocktime()))
         self.myGUI.println("Costs: " + str(self.costs))
         
+        #Print neigbourlist
+        self.printNeighbourList()
+        self.myGUI.println("Distance vector: " + str(self.minCost))
+        self.myGUI.println("Routes: "+ str(self.route))
         
+    #Print the route
+    def printRoute(self):
+        self.myGUI.println("---Route---")
+        self.myGUI.println(str(self.route))
+
+    #Print the neighbour list
+    def printNeighbourList(self):
+        self.myGUI.println("---NeighbourList---")
+        for i in range(self.sim.NUM_NODES):
+            #if i != self.myID:
+            self.myGUI.println("nbr  " + str(i) + str(self.nbrcosts2d[i]))
+        self.myGUI.println(str(self.neighbours))
         
-
-        pass
-
     # --------------------------------------------------
     def updateLinkCost(self, dest, newcost):
+        
         self.myGUI.println("---Updating link cost---")
         #Chaning costs of our direct link
         self.myGUI.println("from: " + str(self.costs))
+        
+        
+        
+        #If the mincost route uses dest, then update mincost to newcost
+        print(self.route)
+        for i in range(self.sim.NUM_NODES):
+            if self.route[i] == dest:
+                self.minCost[i] += (-1 * self.costs[dest]) + newcost
+        
+        self.nbrcosts2d[self.myID] = self.minCost
         self.costs[dest] = newcost
         self.myGUI.println("to: " + str(self.costs))
 
-        #Checking to see if the new direct link is shorter then our previous minCost
-        if self.minCost[dest] > self.costs[dest]:
-            self.minCost[dest] = self.costs[dest]
-            self.nbrcosts2d[self.myID] = self.minCost
-
-        self.printNeighbourList()
+        for i in range(self.sim.NUM_NODES):
+            if self.route[i] == dest:
+                for j in range(self.sim.NUM_NODES):
+                    if self.costs[j] < self.sim.INFINITY:
+                        if self.minCost[i] > self.costs[j] + self.nbrcosts2d[j][i]:
+                            self.minCost[i] = self.costs[j] + self.nbrcosts2d[j][i]
+                            self.route[i] = j
         '''
-        self.myGUI.println("to: " + str(self.costs))
-
-        self.printNeighbourList()
-        for i in range(len(self.costs)):
-                if i != self.myID:
-                    pkt = RouterPacket(self.myID,i,self.costs)
-                    self.sendUpdate(pkt)
-                    self.myGUI.println(self.time() + " Send update to : " + str(i))
-        '''
+        #Find if the cost is less then the minCost
+        for column in range(self.sim.NUM_NODES):
+            if self.minCost[i] > self.costs[i]:
+                self.minCost[i] = self.costs[i]
+                self.nbrcosts2d[self.myID] = self.minCost
+                self.route[i] = i
         
+        for i in range(self.sim.NUM_NODES):
+            for j in range(self.sim.NUM_NODES):
+                if i != self.myID:
+                    tempCost = self.nbrcosts2d[self.myID][i] + self.nbrcosts2d[i][j]
+                    if self.minCost[j] > tempCost:
+                        self.minCost[j] = tempCost
+                        self.route[j] = i
+        self.printDistanceTable()
+        '''
+
 
         self.broadcast()
-        
-        
-        
-        pass
+
     
     def broadcast(self):
+        
         for i in range(len(self.neighbours)):
-                if i != self.myID:
-                    pkt = RouterPacket(self.myID,i,self.minCost)
-                    self.sendUpdate(pkt)
-                    self.myGUI.println(self.time() + " Send update to : " + str(i))
+            
+            if i != self.myID:
+                
+                pkt = RouterPacket(self.myID,i,self.minCost)
+                self.sendUpdate(pkt)
+                self.myGUI.println(self.time() + " Send update to : " + str(i))
+
     def time(self):
         tid = time.process_time()
         #self.myGUI.println(str(tid))
