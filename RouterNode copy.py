@@ -83,19 +83,30 @@ class RouterNode():
         '''
         self.myGUI.println("Old table:")
         self.printDistanceTable()
-        for i in range(self.sim.NUM_NODES):
-            if self.nbrcosts2d[pkt.sourceid] != pkt.mincost:
-                changed = True
-                self.nbrcosts2d[pkt.sourceid] = deepcopy(pkt.mincost)
+        sule = False
+        if not sule:
+            for i in range(self.sim.NUM_NODES):
+                if self.nbrcosts2d[pkt.sourceid] != pkt.mincost:
+                    changed = True
+                    self.nbrcosts2d[pkt.sourceid] = deepcopy(pkt.mincost)
+        else:
+            for i in range(self.sim.NUM_NODES):
+                if self.nbrcosts2d[pkt.sourceid][i] != pkt.mincost[i]:
+                    changed = True
+                    self.nbrcosts2d[pkt.sourceid][i] = pkt.mincost[i]
         self.myGUI.println("New Table:")
         self.printDistanceTable()
         
         if changed:
 
             for column in range(self.sim.NUM_NODES):
+                if column == self.myID:
+                    continue
+                
+                neighCost = self.costs[pkt.sourceid] + self.nbrcosts2d[pkt.sourceid][column]
                 #if we are using the incoming packets sourceid as a route. We need to update our mincost acordingly
                 if self.route[column] == pkt.sourceid and self.route[column] != self.sim.INFINITY:
-                    self.minCost[column] = self.costs[pkt.sourceid] + self.nbrcosts2d[pkt.sourceid][column]
+                    self.minCost[column] = neighCost
 
                 #If our direct path is shorter then the routed path, then swap to the direct path. 
                 if self.minCost[column] > self.costs[column]:
@@ -103,17 +114,17 @@ class RouterNode():
                     self.route[column] = column
 
                 for row in range(self.sim.NUM_NODES):
-                    if row != self.myID:
+                    #if row != self.myID:
                     #find a node that has a shorter cost to colum
-                        if self.minCost[column] > self.nbrcosts2d[row][column]:
-                            #if there is a node with a shorter cost to column, then check if the cost to
-                            #that row + the cost from that row to the colum is bigger then our cost to the
-                            #column.
-                            if self.minCost[column] > self.costs[row] + self.nbrcosts2d[row][column]:
-                                self.minCost[column] = self.costs[row] + self.nbrcosts2d[row][column]
-                                self.route[column] = row
-                                self.nbrcosts2d[self.myID] = self.minCost
-            
+                    if self.minCost[column] > self.nbrcosts2d[row][column]:
+                        #if there is a node with a shorter cost to column, then check if the cost to
+                        #that row + the cost from that row to the colum is bigger then our cost to the
+                        #column.
+                        if self.minCost[column] > self.costs[row] + self.nbrcosts2d[row][column]:
+                            self.minCost[row] = self.costs[column] + self.nbrcosts2d[row][column]
+                            self.route[row] = self.route[column]
+                            self.nbrcosts2d[self.myID] = self.minCost
+        
             self.printDistanceTable()
 
         

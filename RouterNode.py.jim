@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+import GuiTextArea, RouterPacket, F
+from copy import deepcopy
+
+
+class RouterNode():
+    sim = None
+    myID = None
+    myGUI = None
+    myDV = None
+    my_routes = None
+    link_costs = None
+    nbr_dv_table = None
+
+    # Access simulator variables with:
+    # self.sim.POISONREVERSE, self.sim.NUM_NODES, etc.
+
+    # --------------------------------------------------
+    def __init__(self, ID, sim, link_costs):
+        self.myID = ID
+        self.sim = sim
+        self.myGUI = GuiTextArea.GuiTextArea("  Output window for Router #" + str(ID) + "  ")
+        self.link_costs = deepcopy(link_costs)
+        self.nbr_dv_table = {}
+        self.my_routes = [i if link_costs[i] != sim.INFINITY else '-' for i in range(sim.NUM_NODES)]
+
+        self.myDV = deepcopy(link_costs)
+
+        self.sendUpdate()
+
+
+    # --------------------------------------------------
+    def recvUpdate(self, pkt):
+        # update distance vector table
+        self.nbr_dv_table[pkt.sourceid] = pkt.mincost
+
+        myDV_updated = False
+
+        # update distance vector for this router
+        for dest in range(self.sim.NUM_NODES):
+            if self.my_routes[dest] == pkt.sourceid:
+                self.myDV[dest] = self.link_costs[pkt.sourceid] + self.nbr_dv_table[pkt.sourceid][dest]
+            for nbr in range(self.sim.NUM_NODES):
+                if 0 < self.link_costs[nbr] < self.sim.INFINITY and nbr in self.nbr_dv_table:
+                    new_cost = self.link_costs[nbr] + self.nbr_dv_table[nbr][dest]
+                    if self.myDV[dest] > new_cost:
+                        self.myDV[dest] = new_cost
+                        self.my_routes[dest] = nbr
+                        myDV_updated = True
+
+        if myDV_updated:
+            self.sendUpdate()
+      
+
+
+    # --------------------------------------------------
+    def sendUpdate(self):
+        print(f"sendUpdate {self.myID} {self.myDV}")
+
+        # send our distance vector array to all neighbors
+        for i in range(self.sim.NUM_NODES):
+            if 0 < self.link_costs[i] < self.sim.INFINITY:
+                dvt_copy = deepcopy(self.myDV)
+                # 
+                if (self.sim.POISONREVERSE):
+                    for j in range(self.sim.NUM_NODES):
+                        if self.my_routes[j] == i:
+                            dvt_copy[j] = self.sim.INFINITY
+                
+                pkt = RouterPacket.RouterPacket(self.myID, i, dvt_copy)
+                self.sim.toLayer2(pkt)
+        
+
+
+    # --------------------------------------------------
+    def printDistanceTable(self):
+        #print(f"printDistanceTable {self.myID}")
+        #self.myGUI.println("Current table for " + str(self.myID) + "  at time " + str(self.sim.getClocktime()))
+
+        # print table header
+        self.myGUI.println("\nAll distance vectors and our my_routes:")
+        string = f"{'dst':>7} |"
+        for i in range(self.sim.NUM_NODES):
+            string += f"{i:>5}"
+        self.myGUI.println(string)
+        self.myGUI.println("-"*(9 + 5*self.sim.NUM_NODES))
+
+        # print neighbor distance vectors 
+        for key in self.nbr_dv_table.keys():
+            if key == self.myID:
+                continue
+            string = f"{'nbr':>4}{key:>3} |"
+            for dst in self.nbr_dv_table[key]:
+                string += f"{dst:>5}"
+            self.myGUI.println(string)
+
+
+        # print our distance vector
+        string = f"{' my_dv':<7} |"
+        for i in range(self.sim.NUM_NODES):
+            string += f"{self.myDV[i]:>5}"
+        self.myGUI.println(string)
+
+
+        # print our my_routes
+        string = f"{' routes':<7} |"
+        for i in range(self.sim.NUM_NODES):
+            string += f"{self.my_routes[i]:>5}"
+        self.myGUI.println(string)
+
+
+
+    # --------------------------------------------------
+    def updateLinkCost(self, dest, newcost):
+        #print(self.link_costs, f" pre update {self.myID}")
+
+        cost_updated = False
+        self.link_costs[dest] = newcost
+        # find my_routes that use the updated link
+        for i in range(self.sim.NUM_NODES):
+            if self.my_routes[i] == dest:
+                # update route cost 
+                self.myDV[i] = newcost + self.nbr_dv_table[dest][i]
+                # compute cheapest route for nodes that had a route through the updated link
+                for j in range(self.sim.NUM_NODES):
+                    if 0 < self.link_costs[j] < self.sim.INFINITY:
+                        if self.myDV[i] > self.link_costs[j] + self.nbr_dv_table[j][i]:
+                            self.myDV[i] = self.link_costs[j] + self.nbr_dv_table[j][i]
+                            self.my_routes[i] = j
+    
+                cost_updated = True
+                #print(self.myDV, self.link_costs)
+
+        if cost_updated:
+            self.sendUpdate()
+
+
+        #print(self.link_costs, f" post update {self.myID}")
+
+      
+
+    '''
+    def temp(self):
+         # update distance vector for this router
+        for dest in range(self.sim.NUM_NODES):
+            new_cost = self.link_costs[pkt.sourceid] + self.nbr_dv_table[pkt.sourceid][dest]
+            # update current route cost if current route goes through pkt source
+            if self.my_routes[dest] == pkt.sourceid and self.myDV[dest] != new_cost:
+                self.myDV[dest] = new_cost
+                route_updated = True
+            # check if the route cost through pkt source is lower than the cost of the current route
+            elif self.myDV[dest] > new_cost:
+                self.myDV[dest] = new_cost
+                self.my_routes[dest] = pkt.sourceid
+                route_updated = True
+    '''
