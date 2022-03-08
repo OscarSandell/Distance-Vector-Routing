@@ -3,7 +3,6 @@ import GuiTextArea, RouterPacket, F
 from copy import deepcopy
 from RouterSimulator import Event
 from RouterPacket import RouterPacket
-import time
 class RouterNode():
     
     myID = None
@@ -13,8 +12,6 @@ class RouterNode():
 
     #nbrcost2d is the distancevector of the neighbours
     nbrcosts2d = None
-    #neighbour is every nodes neigbhourlist where each element is the index of the neighbour in the simulators nodelist
-    neighbours = None
     #mincost is the minimum cost to each node from the current node
     minCost = None
     #Routing path
@@ -26,100 +23,77 @@ class RouterNode():
     def __init__(self, ID, sim, costs):
         self.myID = ID
         self.sim = sim
+        #Initiate the 2D neighbour list
+        self.nbrcosts2d = [[self.sim.INFINITY for x in range(self.sim.NUM_NODES)] for y in range(self.sim.NUM_NODES)]
+        self.minCost = [0]*self.sim.NUM_NODES
+        self.route = [0]*self.sim.NUM_NODES  
+        
         self.myGUI = GuiTextArea.GuiTextArea("  Output window for Router #" + str(ID) + "  ")
 
         self.costs = deepcopy(costs)
         
-
-        #Initiate the 2D neighbour list
-        self.nbrcosts2d = [[self.sim.INFINITY for x in range(self.sim.NUM_NODES)] for y in range(self.sim.NUM_NODES)]
-
-        for x in range(self.sim.NUM_NODES):
-            for y in range(self.sim.NUM_NODES):
-                if x == self.myID:
-                    self.nbrcosts2d[x][y] = self.costs[y]
-                elif y == x:
-                    self.nbrcosts2d[x][y] = 0
+        
+        #Intitializing all nodes in the vector matrix to infinity except for the nodes that point to themselves
+        #whos cost is obviously 0.
+        for i in range(self.sim.NUM_NODES):
+            for j in range(self.sim.NUM_NODES):
+                if i != j:
+                    self.nbrcosts2d[i][j] = self.sim.INFINITY 
                 else:
-                    self.nbrcosts2d[x][y] = self.sim.INFINITY
-                    
-
+                    self.nbrcosts2d[i][j] = 0
+            #Initializing routes to i, as long as the cost to i isnt infinity
+            if self.costs[i] < self.sim.INFINITY:
+                self.route[i] = i
+            else:
+                self.route[i] = self.sim.INFINITY
         #Initiate the minCost variable, it is currently our direct cost to our neighbours
         self.minCost = deepcopy(self.costs)
+
         
-        #Initiate the list of who's our neighbours
-        self.neighbours = []
-        for i in range(self.sim.NUM_NODES):
-            if costs[i] != self.sim.INFINITY:
-                self.neighbours.append(i)
-        
-        #Inititate route
-        self.route = []
-        for i in range(self.sim.NUM_NODES):
-            if costs[i] != self.sim.INFINITY:
-                self.route.append(i)
-            else:
-                self.route.append(self.sim.INFINITY)
-        #Send our minCost to our neighbours.
-        for i in range(len(self.neighbours)):
-            if self.costs[i] != 0 and self.costs[i] != self.sim.INFINITY:
-                self.sendUpdate(RouterPacket(self.myID,i,self.minCost))
-        
+        self.broadcast()
         self.printDistanceTable()
     # --------------------------------------------------
     
-        
-
     def recvUpdate(self, pkt):
-        self.myGUI.println(self.time() + " Packet recieved -- Src: " +str(pkt.sourceid) + "; mincost: " + str(pkt.mincost))
+        self.myGUI.println(" Packet recieved -- Src: " +str(pkt.sourceid) + "; mincost: " + str(pkt.mincost))
         changed = False
-        #Uppdatera cost på något sätt hmmmmmmmmmmmmm.....
-        '''
-        list = [elm1[item1,item2],
-                elm2[item1,item2],
-                elm3[item1,item2]]
-        
-        list[0][0]
-        '''
-        self.myGUI.println("Old table:")
-        self.printDistanceTable()
+
+        self.myGUI.println(f"Old vector for {pkt.sourceid}: \n{self.nbrcosts2d[pkt.sourceid]}")
+        #Update the vector table with the newly recieved packet. 
         for i in range(self.sim.NUM_NODES):
             if self.nbrcosts2d[pkt.sourceid] != pkt.mincost:
                 changed = True
                 self.nbrcosts2d[pkt.sourceid] = deepcopy(pkt.mincost)
-        self.myGUI.println("New Table:")
-        self.printDistanceTable()
-        
+        self.myGUI.println(f"New vector for {pkt.sourceid}: \n{self.nbrcosts2d[pkt.sourceid]}")
+         
         if changed:
 
-            for column in range(self.sim.NUM_NODES):
+            for i in range(self.sim.NUM_NODES):
                 #if we are using the incoming packets sourceid as a route. We need to update our mincost acordingly
-                if self.route[column] == pkt.sourceid and self.route[column] != self.sim.INFINITY:
-                    self.minCost[column] = self.costs[pkt.sourceid] + self.nbrcosts2d[pkt.sourceid][column]
+                if self.route[i] == pkt.sourceid and self.route[i] != self.sim.INFINITY:
+                    self.minCost[i] = self.costs[pkt.sourceid] + self.nbrcosts2d[pkt.sourceid][i]
 
                 #If our direct path is shorter then the routed path, then swap to the direct path. 
-                if self.minCost[column] > self.costs[column]:
-                    self.minCost[column] = self.costs[column]
-                    self.route[column] = column
+                if self.minCost[i] > self.costs[i]:
+                    self.minCost[i] = self.costs[i]
+                    self.route[i] = i
 
-                for row in range(self.sim.NUM_NODES):
-                    if row != self.myID:
-                    #find a node that has a shorter cost to colum
-                        if self.minCost[column] > self.nbrcosts2d[row][column]:
-                            #if there is a node with a shorter cost to column, then check if the cost to
-                            #that row + the cost from that row to the colum is bigger then our cost to the
-                            #column.
-                            if self.minCost[column] > self.costs[row] + self.nbrcosts2d[row][column]:
-                                self.minCost[column] = self.costs[row] + self.nbrcosts2d[row][column]
-                                self.route[column] = row
-                                self.nbrcosts2d[self.myID] = self.minCost
+                for j in range(self.sim.NUM_NODES):
+                    if j != self.myID:
+                        #if there is a node with a shorter cost to i, then check if the cost to
+                        # j + (j to i) is bigger then our cost to i.
+                        if self.minCost[i] > self.costs[j] + self.nbrcosts2d[j][i]:
+                            self.minCost[i] = self.costs[j] + self.nbrcosts2d[j][i]
+                            self.route[i] = j
+                            self.nbrcosts2d[self.myID] = self.minCost
             
             self.printDistanceTable()
 
         
-            self.myGUI.println(self.time() + " Costs updated! : " + str(self.minCost))
+            self.myGUI.println("Costs updated! : " + str(self.minCost))
             self.broadcast()
 
+        
     # --------------------------------------------------
     def sendUpdate(self, pkt):
         self.sim.toLayer2(pkt)
@@ -127,7 +101,6 @@ class RouterNode():
 
     # --------------------------------------------------
     def printDistanceTable(self):
-        self.myGUI.println(self.time()) # <--- printa table
         self.myGUI.println("Current table for " + str(self.myID) +
                            "  at time " + str(self.sim.getClocktime()))
         self.myGUI.println("Costs: " + str(self.costs))
@@ -148,7 +121,6 @@ class RouterNode():
         for i in range(self.sim.NUM_NODES):
             #if i != self.myID:
             self.myGUI.println("nbr  " + str(i) + str(self.nbrcosts2d[i]))
-        self.myGUI.println(str(self.neighbours))
         
     # --------------------------------------------------
     def updateLinkCost(self, dest, newcost):
@@ -157,65 +129,45 @@ class RouterNode():
         #Chaning costs of our direct link
         self.myGUI.println("from: " + str(self.costs))
         
-        
-        
         #If the mincost route uses dest, then update mincost to newcost
         print(self.route)
         for i in range(self.sim.NUM_NODES):
             if self.route[i] == dest:
-                self.minCost[i] += (-1 * self.costs[dest]) + newcost
+                #since mincost contains self.costs[dest] we need to subract it before
+                #adding the newcost, otherwise the mincost will be too high.
+                #alternative method would be to look up the intermediate nodes cost to
+                #destination and add the new cost to that and then assign minCost as that.
+                self.minCost[i] +=  (newcost - self.costs[dest])
         
         self.nbrcosts2d[self.myID] = self.minCost
         self.costs[dest] = newcost
         self.myGUI.println("to: " + str(self.costs))
 
-        for i in range(self.sim.NUM_NODES):
-            if self.route[i] == dest:
-                for j in range(self.sim.NUM_NODES):
-                    if self.costs[j] < self.sim.INFINITY:
-                        if self.minCost[i] > self.costs[j] + self.nbrcosts2d[j][i]:
-                            self.minCost[i] = self.costs[j] + self.nbrcosts2d[j][i]
-                            self.route[i] = j
-        '''
-        #Find if the cost is less then the minCost
-        for column in range(self.sim.NUM_NODES):
-            if self.minCost[i] > self.costs[i]:
-                self.minCost[i] = self.costs[i]
-                self.nbrcosts2d[self.myID] = self.minCost
-                self.route[i] = i
-        
+        #Search for another path that is cheaper if there is any. 
         for i in range(self.sim.NUM_NODES):
             for j in range(self.sim.NUM_NODES):
-                if i != self.myID:
-                    tempCost = self.nbrcosts2d[self.myID][i] + self.nbrcosts2d[i][j]
-                    if self.minCost[j] > tempCost:
-                        self.minCost[j] = tempCost
-                        self.route[j] = i
-        self.printDistanceTable()
-        '''
-
-
+                if self.costs[j] < self.sim.INFINITY:
+                    if self.costs[dest] > self.costs[j] + self.nbrcosts2d[j][i] and i != self.myID:
+                        self.minCost[i] = self.costs[j] + self.nbrcosts2d[j][i]
+                        self.route[i] = j
         self.broadcast()
 
     
     def broadcast(self):
-        
+        tempCost = [0]*self.sim.NUM_NODES
+        tempCost = deepcopy(self.minCost)
+
         for i in range(self.sim.NUM_NODES):
             if self.costs[i] != 0 and self.costs[i] != self.sim.INFINITY:
                 if self.sim.POISONREVERSE:
-                    tempCost = deepcopy(self.minCost)
+                    #if i is a route in our routing table, then set the mincost of that route to infinity and send that insted. 
+                    #This is to break any loops occuring that counts to infinity. 
                     for j in range(self.sim.NUM_NODES):
                         if self.route[j] == i and i != j:
                             tempCost[j] = self.sim.INFINITY
-                    pkt = RouterPacket(self.myID,i,tempCost)
-                    self.sendUpdate(pkt)
-                    self.myGUI.println(self.time() + " Send update to : " + str(i))
-                else:
-                    pkt = RouterPacket(self.myID,i,self.minCost)
-                    self.sendUpdate(pkt)
-                    self.myGUI.println(self.time() + " Send update to : " + str(i))
-    def time(self):
-        tid = time.process_time()
-        #self.myGUI.println(str(tid))
-        return str(tid)
+                        else:
+                            tempCost[j] = self.minCost[j]
+
+                self.sendUpdate(RouterPacket(self.myID,i,tempCost))
+                self.myGUI.println("Send update to : " + str(i))
     

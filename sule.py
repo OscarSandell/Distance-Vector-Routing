@@ -69,7 +69,7 @@ class RouterNode():
             for i in range (self.sim.NUM_NODES):
                 if i == self.myID:
                     continue # we always have 0 cost to ourself, skip
-                
+
                 # determine cost to i via neighbour using new info
                 neighCost = self.minCosts[self.nextHops[i]] + self.neighCosts[self.nextHops[i]][i]
 
@@ -165,7 +165,10 @@ class RouterNode():
         # Update link costs for every route that has next hop set to dest.
         for i in range (self.sim.NUM_NODES):
             if self.nextHops[i] == dest:
+                
                 self.minCosts[i] += (newcost - self.costs[dest])
+
+                #cost to intermediete node + intermediate node to destination = - selfcost + newcost
 
         self.myGUI.println("My minCosts after: " + str(self.minCosts))
         self.costs[dest] = newcost
@@ -176,7 +179,7 @@ class RouterNode():
                 # Check the cost on neighbour j for destination dest
                 if self.neighCosts[j][i] + self.costs[j] < newcost and i != self.myID:
                     # We have a new lowest cost route
-                    self.minCosts[i] = self.neighCosts[j][i] + self.costs[j]
+                    self.minCosts[i] =  + self.costs[j] + self.neighCosts[j][i]
                     self.nextHops[i] = j
                     self.myGUI.println("Setting cost to " + str(i) + " to " + str(self.minCosts[i]) + " with next hop set to " + str(self.nextHops[i]))
 

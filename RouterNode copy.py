@@ -123,7 +123,7 @@ class RouterNode():
                         if self.minCost[column] > self.costs[row] + self.nbrcosts2d[row][column]:
                             self.minCost[row] = self.costs[column] + self.nbrcosts2d[row][column]
                             self.route[row] = self.route[column]
-                            self.nbrcosts2d[self.myID] = self.minCost
+                            #self.nbrcosts2d[self.myID] = self.minCost
         
             self.printDistanceTable()
 
@@ -176,7 +176,7 @@ class RouterNode():
             if self.route[i] == dest:
                 self.minCost[i] += (-1 * self.costs[dest]) + newcost
         
-        self.nbrcosts2d[self.myID] = self.minCost
+        #self.nbrcosts2d[self.myID] = self.minCost
         self.costs[dest] = newcost
         self.myGUI.println("to: " + str(self.costs))
 
@@ -218,6 +218,8 @@ class RouterNode():
                     for j in range(self.sim.NUM_NODES):
                         if self.route[j] == i and i != j:
                             tempCost[j] = self.sim.INFINITY
+                        else:
+                            tempCost[j] = self.minCost[j]
                     pkt = RouterPacket(self.myID,i,tempCost)
                     self.sendUpdate(pkt)
                     self.myGUI.println(self.time() + " Send update to : " + str(i))
